@@ -1,10 +1,10 @@
 fn main() {
     fn take_ownership_str(name: String) {
-        println!("Took ownership of {}, name")
+        println!("Took ownership of {}", name)
     }
 
     fn copy_value_int(num: u32) {
-        println!("The copied value is {} at {}", num, &num);
+        println!("The copied value is {} at {}\n", num, &num);
     }
 
     let id = String::from("packet-id");
@@ -12,7 +12,7 @@ fn main() {
 
     println!("{}", id);
     println!("{}", port_no);
-    println!("{:p}", &port_no);
+    println!("{:p}\n", &port_no);
 
     take_ownership_str(id);
     copy_value_int(port_no);
@@ -20,7 +20,7 @@ fn main() {
     // if this is uncommented, the compiler gives an error as the ownership is transferred when the take_ownership_str function is called
     // println!("{id}");
     println!("{}", port_no);
-    println!("{:p}", &port_no);
+    println!("{:p}\n\n", &port_no);
 
     /*
     bit 0: endianness (0 -> little endian; 1 -> big endian)
@@ -42,5 +42,46 @@ fn main() {
     current packet version - IPv4
     processable - yes
     */
-    let state: u64 = 1100000000000000000000000000000000000000110000000000000000001001;
+    let state: u64 = 0b1100000000000000000000000000000000000000110000000000000000001001;
+
+    // extracting bits from a value
+    fn extract_bits(val: u64, start: u8, end: u8) -> u64 {
+        let mut mask: u64 = 0b0;
+
+        for diff in (end - start)..0 {
+            mask = mask * 2 + 1;
+        }
+        for padding in (64 - end)..0 {
+            mask *= 2;
+        }
+
+        return (val & mask) >> (64 - end);
+    }
+
+    // adjust multi bit flags based on endianness
+    fn endianness_adjusted_bits(val: u64, start: u8, end: u8) -> u64 {
+        let endianness: u64 = get_endianness(val);
+        let bits: u64 = extract_bits(val, start, end);
+        if endianness == 0 {
+            return u64::from_le_bytes(bits.to_le_bytes());
+        }
+        return bits;
+    }
+
+    // gets
+    fn get_endianness(val: u64) -> u64 { return extract_bits(val, 0, 1); }
+    
+    fn get_system_state(val: u64) -> u64 { return extract_bits(val, 1, 2); }
+    
+    fn get_is_strict(val: u64) -> u64 { return extract_bits(val, 2, 3); }
+    
+    fn get_system_ip(val: u64) -> u64 { return endianness_adjusted_bits(val, 3, 35); }
+    
+    fn get_transfer_protocol(val: u64) -> u64 { return endianness_adjusted_bits(val, 35, 43); }
+    
+    fn get_packet_id(val: u64) -> u64 { return endianness_adjusted_bits(val, 43, 59); }
+    
+    fn get_packet_version(val: u64) -> u64 { return endianness_adjusted_bits(val, 59, 63); }
+    
+    fn get_processable(val: u64) -> u64 { return extract_bits(val, 63, 64); }
 }
