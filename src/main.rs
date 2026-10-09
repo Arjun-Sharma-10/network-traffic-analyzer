@@ -60,15 +60,16 @@ fn main() {
     }
 
     // adjust multi bit flags based on endianness
-    fn endianness_adjusted_bits(val: u64, start: u8, end: u8) -> u64 {
+    fn endianness_adjusted_bits(val: u64, start: u8, end: u8, size: usize) -> u64 {
         let endianness: u64 = get_endianness(val);
         let bits: u64 = extract_bits(val, start, end);
         if endianness == 0 {
             let le_bytes = bits.to_le_bytes();
             let mut be_bytes: [u8; 8] = [0; 8];
             for n in 0..=7 {
-                be_bytes[7 - n] = le_bytes[n];
+                be_bytes[7 - n] = le_bytes[n].reverse_bits();
             }
+            be_bytes[7 - size/8] = be_bytes[7 - size/8] >> (size % 8);
             return u64::from_be_bytes(be_bytes);
         }
         return bits;
@@ -81,13 +82,13 @@ fn main() {
     
     fn get_is_strict(val: u64) -> u64 { return extract_bits(val, 2, 3); }
     
-    fn get_system_ip(val: u64) -> u64 { return endianness_adjusted_bits(val, 3, 35); }
+    fn get_system_ip(val: u64) -> u64 { return endianness_adjusted_bits(val, 3, 35, 32); }
     
-    fn get_transfer_protocol(val: u64) -> u64 { return endianness_adjusted_bits(val, 35, 43); }
+    fn get_transfer_protocol(val: u64) -> u64 { return endianness_adjusted_bits(val, 35, 43, 8); }
     
-    fn get_packet_id(val: u64) -> u64 { return endianness_adjusted_bits(val, 43, 59); }
+    fn get_packet_id(val: u64) -> u64 { return endianness_adjusted_bits(val, 43, 59, 16); }
     
-    fn get_packet_version(val: u64) -> u64 { return endianness_adjusted_bits(val, 59, 63); }
+    fn get_packet_version(val: u64) -> u64 { return endianness_adjusted_bits(val, 59, 63, 4); }
     
     fn get_processable(val: u64) -> u64 { return extract_bits(val, 63, 64); }
 
