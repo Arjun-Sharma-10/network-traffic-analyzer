@@ -1,12 +1,94 @@
+fn take_ownership_str(name: String) {
+    println!("Took ownership of {}", name)
+}
+
+fn copy_value_int(num: u32) {
+    println!("The copied value is {} at {}\n", num, &num);
+}
+
+// extracting bits from a value
+fn extract_bits(val: u64, start: u8, end: u8) -> u64 {
+    let mut mask: u64 = 0b0;
+
+    for _n in 0..(end - start) {
+        mask = mask * 2 + 1;
+    }
+    for _n in 0..(64 - end) {
+        mask *= 2;
+    }
+
+    return (val & mask) >> (64 - end);
+}
+
+// adjust multi bit flags based on endianness
+fn endianness_adjusted_bits(val: u64, start: u8, end: u8, size: usize) -> u64 {
+    let endianness: u64 = get_endianness(val);
+    let bits: u64 = extract_bits(val, start, end);
+    if endianness == 0 {
+        let le_bytes = bits.to_le_bytes();
+        let mut be_bytes: [u8; 8] = [0; 8];
+        for n in 0..=7 {
+            be_bytes[7 - n] = le_bytes[n].reverse_bits();
+        }
+        be_bytes[7 - size/8] = be_bytes[7 - size/8] >> (size % 8);
+        return u64::from_be_bytes(be_bytes);
+    }
+    return bits;
+}
+
+// gets
+fn get_endianness(val: u64) -> u64 { return extract_bits(val, 0, 1); }
+
+fn get_system_state(val: u64) -> u64 { return extract_bits(val, 1, 2); }
+
+fn get_is_strict(val: u64) -> u64 { return extract_bits(val, 2, 3); }
+
+fn get_system_ip(val: u64) -> u64 { return endianness_adjusted_bits(val, 3, 35, 32); }
+
+fn get_transfer_protocol(val: u64) -> u64 { return endianness_adjusted_bits(val, 35, 43, 8); }
+
+fn get_packet_id(val: u64) -> u64 { return endianness_adjusted_bits(val, 43, 59, 16); }
+
+fn get_packet_version(val: u64) -> u64 { return endianness_adjusted_bits(val, 59, 63, 4); }
+
+fn get_processable(val: u64) -> u64 { return extract_bits(val, 63, 64); }
+
+struct TCP_Packet<'a> {
+    source_port: u16,
+    destination_port: u16,
+    sequence_number: u32,
+    acknowledgement_number: u32,
+    header_length: u8,
+    reserved: u8,
+    flags: u8,
+    window_size: u16,
+    checksum: u16,
+    urgent_pointer: u16,
+    options: u32,
+    data: &'a str
+}
+struct IP_Packet<'a> {
+    version: u8,
+    header_length: u8,
+    type_of_service: u8,
+    total_length: u16,
+    id: u16,
+    flags: u8,
+    fragment_offset: u16,
+    time_to_live: u8,
+    protocol: u8,
+    header_checksum: u16,
+    source_ip_address: u32,
+    destination_ip_address: u32,
+    options: u32,
+    data: &'a TCP_Packet<'a>
+}
+
+fn get_data<'a>(ip: &'a IP_Packet) -> &'a TCP_Packet<'a> {
+    return ip.data;
+}
+
 fn main() {
-    fn take_ownership_str(name: String) {
-        println!("Took ownership of {}", name)
-    }
-
-    fn copy_value_int(num: u32) {
-        println!("The copied value is {} at {}\n", num, &num);
-    }
-
     let id = String::from("packet-id");
     let port_no: u32 = 67;
 
@@ -42,75 +124,44 @@ fn main() {
     current packet version - IPv4
     processable - yes
     */
-    let state_be: u64 = 0b1100000000000000000000000000000000000000110000000000000000001001;
-    let state_le: u64 = 0b0100000000000000000000000000000000001100000000000000000000000101;
+    // let state_be: u64 = 0b1100000000000000000000000000000000000000110000000000000000001001;
+    // let state_le: u64 = 0b0100000000000000000000000000000000001100000000000000000000000101;
 
-    // extracting bits from a value
-    fn extract_bits(val: u64, start: u8, end: u8) -> u64 {
-        let mut mask: u64 = 0b0;
-
-        for _n in 0..(end - start) {
-            mask = mask * 2 + 1;
-        }
-        for _n in 0..(64 - end) {
-            mask *= 2;
-        }
-
-        return (val & mask) >> (64 - end);
+    let tcp = TCP_Packet {
+        source_port: 80,
+        destination_port: 8080,
+        sequence_number: 0,
+        acknowledgement_number: 0,
+        header_length: 0,
+        reserved: 0,
+        flags: 0,
+        window_size: 0,
+        checksum: 0,
+        urgent_pointer: 0,
+        options: 0,
+        data: "Hello, World!"
+                            };
+    let mut data: &TCP_Packet;
+    {
+        let ip = IP_Packet {
+            version: 4,
+            header_length: 0,
+            type_of_service: 0,
+            total_length: 0,
+            id: 0,
+            flags: 0,
+            fragment_offset: 0,
+            time_to_live: 0,
+            protocol: 0,
+            header_checksum: 0,
+            source_ip_address: 1111,
+            destination_ip_address: 19232567,
+            options: 0,
+            data: &tcp
+        };
+        data = get_data(&ip);
+        println!("{:p}", data);
     }
-
-    // adjust multi bit flags based on endianness
-    fn endianness_adjusted_bits(val: u64, start: u8, end: u8, size: usize) -> u64 {
-        let endianness: u64 = get_endianness(val);
-        let bits: u64 = extract_bits(val, start, end);
-        if endianness == 0 {
-            let le_bytes = bits.to_le_bytes();
-            let mut be_bytes: [u8; 8] = [0; 8];
-            for n in 0..=7 {
-                be_bytes[7 - n] = le_bytes[n].reverse_bits();
-            }
-            be_bytes[7 - size/8] = be_bytes[7 - size/8] >> (size % 8);
-            return u64::from_be_bytes(be_bytes);
-        }
-        return bits;
-    }
-
-    // gets
-    fn get_endianness(val: u64) -> u64 { return extract_bits(val, 0, 1); }
-    
-    fn get_system_state(val: u64) -> u64 { return extract_bits(val, 1, 2); }
-    
-    fn get_is_strict(val: u64) -> u64 { return extract_bits(val, 2, 3); }
-    
-    fn get_system_ip(val: u64) -> u64 { return endianness_adjusted_bits(val, 3, 35, 32); }
-    
-    fn get_transfer_protocol(val: u64) -> u64 { return endianness_adjusted_bits(val, 35, 43, 8); }
-    
-    fn get_packet_id(val: u64) -> u64 { return endianness_adjusted_bits(val, 43, 59, 16); }
-    
-    fn get_packet_version(val: u64) -> u64 { return endianness_adjusted_bits(val, 59, 63, 4); }
-    
-    fn get_processable(val: u64) -> u64 { return extract_bits(val, 63, 64); }
-
-    let num: u32 = 0b0010;
-
-    // testing be
-    println!("{}", get_endianness(state_be));
-    println!("{}", get_system_state(state_be));
-    println!("{}", get_is_strict(state_be));
-    println!("{}", get_system_ip(state_be));
-    println!("{}", get_transfer_protocol(state_be));
-    println!("{}", get_packet_id(state_be));
-    println!("{}", get_packet_version(state_be));
-    println!("{}\n\n", get_processable(state_be));
-    
-    // testing le
-    println!("{}", get_endianness(state_le));
-    println!("{}", get_system_state(state_le));
-    println!("{}", get_is_strict(state_le));
-    println!("{}", get_system_ip(state_le));
-    println!("{}", get_transfer_protocol(state_le));
-    println!("{}", get_packet_id(state_le));
-    println!("{}", get_packet_version(state_le));
-    println!("{}", get_processable(state_le));
+    // gives error on line 162 where it uses &ip since ip has dropped out of scope
+    // println!("{:p}", data);
 }
